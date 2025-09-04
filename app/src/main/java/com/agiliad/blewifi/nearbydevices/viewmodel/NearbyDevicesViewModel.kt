@@ -51,7 +51,7 @@ public class NearbyDevicesViewModel @Inject constructor(
         bleApi.registerConnectionCallback { state ->
             _connectionState.value = state
             if (state == ConnectionState.CONNECTED) {
-
+                onDeviceConnected()
             } else if (state == ConnectionState.DISCONNECTED) {
 
             }
@@ -59,9 +59,11 @@ public class NearbyDevicesViewModel @Inject constructor(
         bleApi.startScan()
     }
 
-    fun connectToDevice(deviceAddress: String) {
-        bleApi.connect(deviceAddress)
-        markAsPreviouslyConnected(deviceAddress)
+    fun connectToDevice(device: Device) {
+        bleApi.connect(device.mac)
+        markAsPreviouslyConnected(device.mac)
+        device.connectionState = "Connecting"
+        //connectionState = ConnectionState.CONNECTING;
     }
 
     override fun onCleared() {
@@ -104,5 +106,9 @@ public class NearbyDevicesViewModel @Inject constructor(
         _devices.value = _devices.value.map {
             if (it.mac == mac) it.copy(isPreviouslyConnected = isConnected) else it
         }
+    }
+
+    private fun onDeviceConnected() {
+        // Trigger any additional logic for when the device is connected
     }
 }

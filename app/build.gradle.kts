@@ -64,4 +64,13 @@ dependencies {
     kapt("com.google.dagger:hilt-android-compiler:2.57")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation(project(":Middlware"))
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+// Use the latest stable version
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+// For JSON to Java/Kotlin object conversion using Gson
+// You might also need other converters like Moshi or Jackson depending on your preference
+// implementation 'com.squareup.retrofit2:converter-moshi:2.9.0'
+// implementation 'com.squareup.retrofit2:converter-jackson:2.9.0'
+// OkHttp logging interceptor (optional, for network request logging)
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
 }

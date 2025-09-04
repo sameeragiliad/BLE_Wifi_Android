@@ -17,10 +17,12 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import com.ble.api.BLEApi
 import com.ble.model.BleScanResult
@@ -55,9 +57,9 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
 
     // Service and characteristic UUIDs
     private val primaryServiceUuid = java.util.UUID.fromString("6DF733E0-AC7B-4C63-8226-FFE665B82697")
-    private val requestCharUuid = java.util.UUID.fromString("6DF733E1-AC7B-4C63-8226-FFE665B82697")
-    private val responseCharUuid = java.util.UUID.fromString("6DF733E2-AC7B-4C63-8226-FFE665B82697")
-    private val protocolVersionCharUuid = java.util.UUID.fromString("6DF733E3-AC7B-4C63-8226-FFE665B82697")
+    private val machineEnableWiFiCharacteristicUUID = java.util.UUID.fromString("6DF733E1-AC7B-4C63-8226-FFE665B82697")
+    private val machineWiFiSSIDCharacteristicUUID = java.util.UUID.fromString("6DF733E2-AC7B-4C63-8226-FFE665B82697")
+    private val machineWiFiPasswordCharacteristicUUID = java.util.UUID.fromString("6DF733E3-AC7B-4C63-8226-FFE665B82697")
 
     private val connectionCallbacks = mutableSetOf<(ConnectionState) -> Unit>()
 
@@ -96,13 +98,14 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     }
 
     private val scanCallback = object : ScanCallback() {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            android.util.Log.d("BLEManager", "Scan result: ${result.device.address}, RSSI: ${result.rssi}, scanRecord: ${result}")
+            Log.d("BLEManager", "Scan result: ${result.device.address}, RSSI: ${result.rssi}, scanRecord: ${result}")
             val scanRecord = result.scanRecord ?: return
             // Filter by Profile ID in service UUIDs
            // if (scanRecord.serviceUuids?.contains(profileUuid) == true) {
                 val mac = result.device.address
-                val assetName = parseAssetName(scanRecord)
+                val assetName = result.device.name//parseAssetName(scanRecord)
                 val bleResult = BleScanResult(mac, assetName)
                 scanResultsFlow.tryEmit(bleResult)
                 scanCallbacks.forEach { it(bleResult) }
@@ -194,73 +197,32 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun writeOperatorId(gatt: BluetoothGatt, service: BluetoothGattService) {
-        val prefs: SharedPreferences = context.getSharedPreferences("protocol_prefs", Context.MODE_PRIVATE)
-        val operatorId = prefs.getString("operator_id", null)
-        android.util.Log.d("BLEManager", "writeOperatorID.$operatorId")
-        if (operatorId == null || operatorId.length != 12) { // 6 bytes in hex string
-            notifyError("Operator ID not set or invalid")
-            gatt.disconnect()
-            return
-        }
-        val requestChar = service.getCharacteristic(requestCharUuid)
+    private fun enableWiFi(gatt: BluetoothGatt, service: BluetoothGattService) {
+
+        val requestChar = service.getCharacteristic(machineEnableWiFiCharacteristicUUID)
         if (requestChar == null) {
             notifyError("Request characteristic not found")
             gatt.disconnect()
             return
         }
-        val opcode = byteArrayOf(0x01, 0x00) // 0x0001
-        val operatorIdBytes = operatorId.chunked(2).map { it.toInt(16).toByte() }.toByteArray() // 6 bytes
-        val request = ByteArray(8)
-        System.arraycopy(opcode, 0, request, 0, 2)
-        System.arraycopy(operatorIdBytes, 0, request, 2, 6)
-        requestChar.value = request
+        val opcode = byteArrayOf(0x01) // 0x0001
+       // val operatorIdBytes = operatorId.chunked(2).map { it.toInt(16).toByte() }.toByteArray() // 6 bytes
+       // val request = ByteArray(8)
+      //  System.arraycopy(opcode, 0, request, 0, 2)
+       // System.arraycopy(operatorIdBytes, 0, request, 2, 6)
+        requestChar.value = opcode
         requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         gatt.writeCharacteristic(requestChar)
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun writeChallengeRequest(gatt: BluetoothGatt, service: BluetoothGattService, challenge: ByteArray) {
-        android.util.Log.d("BLEManager", "initiated write challenge.$challenge")
-        val requestChar = service.getCharacteristic(requestCharUuid)
-        if (requestChar == null) {
-            notifyError("Request characteristic not found for challenge")
-            gatt.disconnect()
-            return
-        }
-        val opcode = byteArrayOf(0x00, 0x03) // 0x0003
-        //val challenge = ByteArray(16) { if (it == 15) 0x64.toByte() else 0x00 } // 16 bytes, last byte is 100
-        val request = ByteArray(18)
-        System.arraycopy(opcode, 0, request, 0, 2)
-        System.arraycopy(challenge, 0, request, 2, 16)
-        requestChar.value = request
-        requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        gatt.writeCharacteristic(requestChar)
-    }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun enableResponseCharacteristicNotification(gatt: BluetoothGatt, service: BluetoothGattService) {
+    private fun enableSSIDCharacteristicNotification(gatt: BluetoothGatt, service: BluetoothGattService) {
         android.util.Log.d("BLEManager", "enableResponseCharacteristicNotification")
         //val device = gatt.device
-        val responseChar = service.getCharacteristic(responseCharUuid)
+        val responseChar = service.getCharacteristic(machineWiFiSSIDCharacteristicUUID)
         val props = responseChar.properties
 
-        // without descriptor
-       /* if(props and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0){
-            if(gatt.setCharacteristicNotification(responseChar, true)) {
-                android.util.Log.d("BLEManager", "setCharacteristicNotification called for ${responseChar.uuid}, result: true")
-            } else {
-                android.util.Log.e("BLEManager", "Failed to set characteristic notification for ${responseChar.uuid}")
-            }
-        }
-
-        if(props and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0){
-            if(gatt.setCharacteristicNotification(responseChar, true)) {
-                android.util.Log.d("BLEManager", "setCharacteristicNotification called for ${responseChar.uuid}, result: true")
-            } else {
-                android.util.Log.e("BLEManager", "Failed to set characteristic notification for ${responseChar.uuid}")
-            }
-        }*/
 
         if ((props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0 &&
             (props and BluetoothGattCharacteristic.PROPERTY_INDICATE) == 0) {
@@ -278,7 +240,39 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
 
                 val descriptor = responseChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
                 if (descriptor != null) {
-                    descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    descriptor.value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+                    val writeOk = gatt.writeDescriptor(descriptor)
+                    android.util.Log.d("BLEManager", "writeDescriptor called for ${descriptor.uuid} and  ${descriptor.value}, result: $writeOk")
+                }
+            }, 300)
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun enablePasswordCharacteristicNotification(gatt: BluetoothGatt, service: BluetoothGattService) {
+        android.util.Log.d("BLEManager", "enableResponseCharacteristicNotification")
+        //val device = gatt.device
+        val responseChar = service.getCharacteristic(machineWiFiPasswordCharacteristicUUID)
+        val props = responseChar.properties
+
+
+        if ((props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0 &&
+            (props and BluetoothGattCharacteristic.PROPERTY_INDICATE) == 0) {
+            android.util.Log.d("BLEManager", "Response characteristic does not support notifications or indications.")
+            return
+        }
+
+        if (responseChar != null) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if(gatt.setCharacteristicNotification(responseChar, true)) {
+                    android.util.Log.d("BLEManager", "setCharacteristicNotification called for ${responseChar.uuid}, result: true")
+                } else {
+                    android.util.Log.e("BLEManager", "Failed to set characteristic notification for ${responseChar.uuid}")
+                }
+
+                val descriptor = responseChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+                if (descriptor != null) {
+                    descriptor.value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
                     val writeOk = gatt.writeDescriptor(descriptor)
                     android.util.Log.d("BLEManager", "writeDescriptor called for ${descriptor.uuid} and  ${descriptor.value}, result: $writeOk")
                 }
@@ -290,7 +284,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                setConnectionState(ConnectionState.CONNECTED)
+               // setConnectionState(ConnectionState.CONNECTED)
                 gatt.discoverServices()
                 android.util.Log.d("BLEManager", "connected device.$connectedDeviceAddress")
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -312,208 +306,85 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
             setConnectionState(ConnectionState.SERVICE_DISCOVERED)
 
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                enableResponseCharacteristicNotification(gatt, service)
-            }, 2000)
-            val protocolChar = service.getCharacteristic(protocolVersionCharUuid)
+                enablePasswordCharacteristicNotification(gatt, service)
+            }, 0)
+
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                enableSSIDCharacteristicNotification(gatt, service)
+            }, 1000)
+
+           /* val protocolChar = service.getCharacteristic(protocolVersionCharUuid)
             if (protocolChar == null) {
                 setConnectionState(ConnectionState.ERROR)
                 notifyError("Protocol version characteristic not found")
                 return
             }
-            safeReadCharacteristic(gatt, protocolChar)
+            safeReadCharacteristic(gatt, protocolChar)*/
+
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                enableWiFi(gatt, service)
+            }, 2000)
+
         }
 
-        @Deprecated("Deprecated in Java")
-        @Suppress("DEPRECATION")
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            android.util.Log.d("BLEManager", "onCharacteristicRead ${characteristic.uuid}")
-            if (characteristic.uuid == protocolVersionCharUuid) {
-                val value = characteristic.value
-                if (value != null) {
-                    if (ProtocolVersionVerifier.verify(context, value)) {
-                        setConnectionState(ConnectionState.PROTOCOL_VERIFIED)
-                        // Write operator ID after protocol verification
-                        val service = gatt.getService(primaryServiceUuid)
-                        if (service != null) {
-                            writeOperatorId(gatt, service)
-                        } else {
-                            setConnectionState(ConnectionState.ERROR)
-                            notifyError("Primary service not found for operator ID write")
-                            gatt.disconnect()
-                        }
-                    } else {
-                        val protocolVersion = ProtocolVersionVerifier.getProtocolVersion(value)
-                        val prefs: SharedPreferences = context.getSharedPreferences("protocol_prefs", Context.MODE_PRIVATE)
-                        val expectedVersion = prefs.getInt("protocol_version", -1)
-                        setConnectionState(ConnectionState.ERROR)
-                        notifyError("Protocol version mismatch: $protocolVersion != $expectedVersion")
-                        gatt.disconnect()
-                    }
-                } else {
-                    setConnectionState(ConnectionState.ERROR)
-                    notifyError("Invalid protocol version data")
-                    gatt.disconnect()
-                }
-            }
-        }
+
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             Log.d("BLEManager", "onDescriptorWrite ${descriptor.uuid}, status: $status")
-            if (descriptor.characteristic.uuid == responseCharUuid) {
+            if (descriptor.characteristic.uuid == machineWiFiSSIDCharacteristicUUID) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     Log.d("BLEManager", "Response characteristic notification enabled successfully.")
-                    // Now safe to read protocol version characteristic
-                    val service = gatt.getService(primaryServiceUuid)
-                    val protocolChar = service?.getCharacteristic(protocolVersionCharUuid)
-                    if (protocolChar != null) {
-                        safeReadCharacteristic(gatt, protocolChar)
-                    } else {
-                        notifyError("Protocol version characteristic not found after notification enabled")
-                    }
+
                 } else {
                     Log.e("BLEManager", "Failed to enable response characteristic notification. Status: $status")
                 }
             }
         }
 
+        @RequiresApi(Build.VERSION_CODES.Q)
         @Deprecated("Deprecated in Java")
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            android.util.Log.d("BLEManager", "onCharacteristicChanged ${characteristic.uuid}")
-            if (characteristic.uuid == responseCharUuid) {
-                val value = characteristic.value ?: return
-                val response = parseOperationResponse(value)
-                val status = ResponseStatusCode.fromCode(response.responseStatusCode)
-                val opcode = OperationId.fromCode(response.operationID)
-                android.util.Log.d("BLEManager", "Response received: status=$status, opcode=$opcode, value=${response.value?.contentToString()}")
-                when (opcode) {
-                    OperationId.GET_OPERATOR_ID -> {
-                        when (status) {
-                            ResponseStatusCode.SUCCESS -> {
-                                if (response.value?.size == 6) {
-                                    val service = gatt.getService(primaryServiceUuid)
-                                    if (service != null) {
-                                        // writeChallengeRequest(gatt, service)
-                                    } else {
-                                        notifyError("Primary service not found for challenge request")
-                                        gatt.disconnect()
-                                    }
-                                }
-                            }
-                            ResponseStatusCode.ERROR -> {
-                                if (response.specialErrorCode?.size == 2) {
-                                    val errorCode = ((response.specialErrorCode[0].toInt() and 0xFF) shl 8) or (response.specialErrorCode[1].toInt() and 0xFF)
-                                    val operatorError = OperatorError.fromCode(errorCode)
-                                    notifyError(operatorError.message)
-                                }
-                            }
-                            ResponseStatusCode.UNKNOWN -> {}
-                        }
-                    }
-                    OperationId.GET_AUTHENTICATION -> {
-                        when (status) {
-                            ResponseStatusCode.SUCCESS -> {
-                                if (response.value?.size == 16) {
-                                    val expected = ByteArray(16) { if (it == 15) 0x64.toByte() else 0x00 }
-                                    val service = gatt.getService(primaryServiceUuid)
-                                    if (response.value.contentEquals(expected)) {
-                                        // Authentication successful, continue connection
-                                        writeChallengeRequest(gatt, service, response.value)
-                                    } else {
-                                        notifyError("Authentication failed: challenge mismatch")
-                                        gatt.disconnect()
-                                    }
-                                }
-                            }
-                            ResponseStatusCode.ERROR -> {
-                                if (response.specialErrorCode?.size == 2) {
-                                    val errorCode = ((response.specialErrorCode[0].toInt() and 0xFF) shl 8) or (response.specialErrorCode[1].toInt() and 0xFF)
-                                    if (errorCode == 0x0004) {
-                                        notifyError("Internal authentication error")
-                                        gatt.disconnect()
-                                    } else {
-                                        notifyError("Unknown authentication error: $errorCode")
-                                        gatt.disconnect()
-                                    }
-                                }
-                            }
-                            ResponseStatusCode.UNKNOWN -> {}
-                        }
-                    }
-                    else -> {
-                        // For all other opcodes, pass response to AssetControlViewModel for UI decisions
-                        assetControlCallback?.invoke(response)
-                    }
+            android.util.Log.d("BLEManager", "onCharacteristicChanged "+characteristic.uuid)
+            when (characteristic.uuid) {
+                machineWiFiSSIDCharacteristicUUID -> {
+                    val data = characteristic.value ?: return
+                    val ssid = data.toString(Charsets.UTF_8)
+                    android.util.Log.d("BLEManager", "Discovered WiFi SSID Characteristic: $ssid")
+                    if (wifiCredentials == null) wifiCredentials = WiFiCredentials()
+                    wifiCredentials?.ssid = ssid
+                    tryConnectToWifi()
+                }
+                machineWiFiPasswordCharacteristicUUID -> {
+                    val data = characteristic.value ?: return
+                    val password = data.toString(Charsets.UTF_8)
+                    android.util.Log.d("BLEManager", "Discovered WiFi Password Characteristic: $password")
+                    if (wifiCredentials == null) wifiCredentials = WiFiCredentials()
+                    wifiCredentials?.password = password
+                    tryConnectToWifi()
+                }
+                else -> {
+                    android.util.Log.d("BLEManager", "characteristic: ${characteristic.uuid}")
                 }
             }
         }
 
     }
 
-    // Callback for asset control responses
-    private var assetControlCallback: ((com.ble.model.OperationResponseModel) -> Unit)? = null
 
-    override fun registerAssetControlCallback(callback: (com.ble.model.OperationResponseModel) -> Unit) {
-        assetControlCallback = callback
-    }
 
-    override fun deregisterAssetControlCallback() {
-        assetControlCallback = null
-    }
+    data class WiFiCredentials(var ssid: String = "", var password: String = "")
+    private var wifiCredentials: WiFiCredentials? = null
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun tryConnectToWifi() {
+        val creds = wifiCredentials
+        if (creds != null && creds.ssid.isNotEmpty() && creds.password.isNotEmpty()) {
+            com.ble.wifi.connectToWifi(context, creds.ssid, creds.password)
+            android.util.Log.d("BLEManager", "Attempting WiFi connection with SSID: ${creds.ssid}")
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    override fun sendAssetControlOperation(operation: OperationId, value: Boolean) {
-        val gatt = bluetoothGatt ?: run {
-            notifyError("No active BLE connection for asset control operation")
-            return
+            // Notify connection state as CONNECTED
+            notifyConnectionState(ConnectionState.CONNECTED)
         }
-        val service = gatt.getService(primaryServiceUuid) ?: run {
-            notifyError("Primary service not found for asset control operation")
-            return
-        }
-        val opcode = operation.code.toShort()
-        val payload: Short = if (value) 0x0001 else 0x0000
-        writeCommand(gatt, service, opcode, payload)
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun writeCommand(gatt: BluetoothGatt, service: BluetoothGattService, opcode: Short, payload: Short) {
-        android.util.Log.d("BLEManager", "writeCommand called, opcode: $opcode, payload: $payload")
-        val requestChar = service.getCharacteristic(requestCharUuid)
-        if (requestChar == null) {
-            notifyError("Request characteristic not found for command")
-            gatt.disconnect()
-            return
-        }
-        val request = ByteArray(4)
-        request[0] = (opcode.toInt() and 0xFF).toByte()
-        request[1] = ((opcode.toInt() shr 8) and 0xFF).toByte()
-        request[2] = (payload.toInt() and 0xFF).toByte()
-        request[3] = ((payload.toInt() shr 8) and 0xFF).toByte()
-        requestChar.value = request
-        requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        val success = gatt.writeCharacteristic(requestChar)
-        android.util.Log.d("BLEManager", "writeCommand called, result: $success, opcode: $opcode, payload: $payload")
-        if (!success) {
-            notifyError("Failed to initiate command write")
-        }
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun safeReadCharacteristic(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic): Boolean {
-        val hasReadProperty = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0
-        if (!hasReadProperty) {
-            android.util.Log.e("BLEManager", "Characteristic ${characteristic.uuid} does not have PROPERTY_READ")
-            notifyError("Characteristic does not support read operation")
-            return false
-        }
-        val result = gatt.readCharacteristic(characteristic)
-        android.util.Log.d("BLEManager", "readCharacteristic called for ${characteristic.uuid}, result: $result")
-        if (!result) {
-            notifyError("Failed to initiate characteristic read for ${characteristic.uuid}")
-        }
-        return result
     }
 }

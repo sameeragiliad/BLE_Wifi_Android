@@ -16,7 +16,7 @@ interface BLEApi {
     fun deregisterErrorCallback(callback: (String) -> Unit)
     fun registerConnectionCallback(callback: (ConnectionState) -> Unit)
     fun deregisterConnectionCallback(callback: (ConnectionState) -> Unit)
-    fun registerAssetControlCallback(callback: (OperationResponseModel) -> Unit)
-    fun deregisterAssetControlCallback()
-    fun sendAssetControlOperation(operation: OperationId, value: Boolean)
+    //fun registerAssetControlCallback(callback: (OperationResponseModel) -> Unit)
+   // fun deregisterAssetControlCallback()
+    //fun sendAssetControlOperation(operation: OperationId, value: Boolean)
 }

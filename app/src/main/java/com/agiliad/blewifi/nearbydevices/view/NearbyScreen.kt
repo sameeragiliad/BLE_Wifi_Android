@@ -2,6 +2,7 @@ package com.agiliad.blewifi.nearbydevices.view
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,19 +46,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.agiliad.blewifi.nearbydevices.viewmodel.NearbyDevicesViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel()) {
+fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect: () -> Unit) {
 
     var isListDisplayed = remember { false }
 
     val devices by viewModel.devices.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
 
+    if (connectionState ==  com.ble.model.ConnectionState.CONNECTED) {
+        onConnect()
+    }
 
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val imageHeight = screenHeight * 0.5f
@@ -138,50 +143,45 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel()) {
                     )
             ) {
                 itemsIndexed(devices) { index, item ->
-                    Row(
+
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = item.id,
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                       /* IconButton(onClick = {
-                            if (favouriteItems.contains(item)) {
-                                favouriteItems.remove(item)
-                            } else {
-                                favouriteItems.add(item)
+                           // .clickable { navigationController.navigate("Dashboard") } //viewModel.connectToDevice(devices[0].mac)
+                            .clickable {
+                                viewModel.connectToDevice(devices[index])
                             }
-                        }) {
-                            Icon(
-                                imageVector = if (favouriteItems.contains(item)) {
-                                    Icons.Default.Favorite
-                                } else {
-                                    Icons.Default.FavoriteBorder
-                                },
-                                contentDescription = null,
-                                tint = if (favouriteItems.contains(item)) Color.Red else
-                                    Color.White
-                            )
-                        }*/
-                    }
-                    Text(
-                        text = item.connectionState,
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodyLarge,
 
-                        )
-                    if (index != devices.lastIndex) {
-                        CustomFadedDivider()
-                        // Divider(color = Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                        ) {
+
+                            Text(
+                                text = item.name,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyLarge,
+
+                                )
+                            Text(
+                                text = item.connectionState,
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall,
+
+                                )
+
+                            if (index != devices.lastIndex) {
+                                CustomFadedDivider()
+                                // Divider(color = Color.White.copy(alpha = 0.2f))
+                            }
+                        }
                     }
                 }
             }
         }
+
     }
 }
 
@@ -209,5 +209,5 @@ fun CustomFadedDivider() {
 @Preview
 @Composable
 fun PreviewNearbyScreen() {
-    NearbyScreen()
+   // NearbyScreen()
 }
