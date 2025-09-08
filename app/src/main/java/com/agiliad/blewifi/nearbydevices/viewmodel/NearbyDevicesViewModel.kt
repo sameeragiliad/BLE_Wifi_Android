@@ -30,7 +30,8 @@ public class NearbyDevicesViewModel @Inject constructor(
     private val PREVIOUSLY_CONNECTED_KEY = "previously_connected_mac"
     private var previouslyConnectedMac: String? = prefs.getString(PREVIOUSLY_CONNECTED_KEY, null)
 
-    init {
+
+    fun initScan() {
         // Store operator ID as "1" in shared preferences on launch
         prefs.edit { putString("operator_id", "000000000001") }
 

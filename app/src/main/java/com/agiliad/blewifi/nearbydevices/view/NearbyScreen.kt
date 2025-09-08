@@ -1,5 +1,9 @@
 package com.agiliad.blewifi.nearbydevices.view
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,20 +22,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,51 +39,50 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.agiliad.blewifi.nearbydevices.viewmodel.NearbyDevicesViewModel
+import com.agiliad.blewifi.utils.permissions.rememberMultiplePermissionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect: () -> Unit) {
 
-    var isListDisplayed = remember { false }
-
-    val devices by viewModel.devices.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
-
-    if (connectionState ==  com.ble.model.ConnectionState.CONNECTED) {
-        onConnect()
+    val permissions = buildList {
+            add(Manifest.permission.BLUETOOTH_SCAN)
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-    val imageHeight = screenHeight * 0.5f
-    val density = LocalDensity.current
-    val startYPx = with(density) { (imageHeight * 0.7f).toPx() }
-    val endYPx = with(density) { imageHeight.toPx() }
-    val favouriteItems = remember { mutableStateListOf<String>() }
-  /*  var items = listOf(
-        "Item 1 details",
-        "Motor Grader",
-        "CAT Hydraulic Excavator",
-        "Truck Loader",
-        "Bulldozer",
-        "Wheel Loader",
-        "Backhoe Loader",
-        "Skid Steer Loader"
-    )*/
+    val permissionSate = rememberMultiplePermissionState(
+        permissions.toTypedArray(),
+         onPermissionsGranted = {
+             viewModel.initScan()
+         }
+    )
+
+    LaunchedEffect(Unit) {
+        delay(500)
+        permissionSate.requestPermissions()
+    }
+
+        NearbyScreenUI(viewModel)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
+
+    val devices by viewModel.devices.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
     val coroutineScope = rememberCoroutineScope()
     val insets = WindowInsets.statusBars.asPaddingValues()
-
 
     Box(
         modifier = Modifier
@@ -124,7 +122,7 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
                 coroutineScope.launch {
                     isRefreshing = true
                     delay(1500)
-                  //  items = items.shuffled()
+                    //  items = items.shuffled()
 
                     isRefreshing = false
                 }
@@ -147,7 +145,7 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                           // .clickable { navigationController.navigate("Dashboard") } //viewModel.connectToDevice(devices[0].mac)
+                            // .clickable { navigationController.navigate("Dashboard") } //viewModel.connectToDevice(devices[0].mac)
                             .clickable {
                                 viewModel.connectToDevice(devices[index])
                             }
@@ -184,7 +182,6 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
 
     }
 }
-
 
 @Composable
 fun CustomFadedDivider() {
