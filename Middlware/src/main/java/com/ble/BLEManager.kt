@@ -71,10 +71,10 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
                 .setServiceUuid(profileUuid)
                 .build()
             val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+
                 .build()
             scanner?.startScan(listOf(filter), settings, scanCallback)
-
             android.util.Log.e("BLEManager", "Scan started:")
         } catch (e: SecurityException) {
             // Handle permission denial gracefully
@@ -103,13 +103,14 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
             Log.d("BLEManager", "Scan result: ${result.device.address}, RSSI: ${result.rssi}, scanRecord: ${result}")
             val scanRecord = result.scanRecord ?: return
             // Filter by Profile ID in service UUIDs
-           // if (scanRecord.serviceUuids?.contains(profileUuid) == true) {
+            if (scanRecord.serviceUuids?.contains(profileUuid) == true) {
                 val mac = result.device.address
-                val assetName = result.device.name//parseAssetName(scanRecord)
-                val bleResult = BleScanResult(mac, assetName)
+                val rssi=result.rssi
+                var assetName = result.device.name?:""
+                val bleResult = BleScanResult(mac, assetName, rssi)
                 scanResultsFlow.tryEmit(bleResult)
                 scanCallbacks.forEach { it(bleResult) }
-           // }
+            }
         }
     }
 
@@ -380,6 +381,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     private fun tryConnectToWifi() {
         val creds = wifiCredentials
         if (creds != null && creds.ssid.isNotEmpty() && creds.password.isNotEmpty()) {
+
             com.ble.wifi.connectToWifi(context, creds.ssid, creds.password)
             android.util.Log.d("BLEManager", "Attempting WiFi connection with SSID: ${creds.ssid}")
 

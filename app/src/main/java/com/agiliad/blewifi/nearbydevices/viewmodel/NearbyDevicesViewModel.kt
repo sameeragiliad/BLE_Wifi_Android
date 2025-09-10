@@ -3,6 +3,7 @@ package com.agiliad.blewifi.nearbydevices.viewmodel
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.ble.api.BLEApi
 import com.ble.model.ConnectionState
@@ -11,7 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import androidx.core.content.edit
+import androidx.lifecycle.viewModelScope
 import com.agiliad.blewifi.nearbydevices.model.Device
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 public class NearbyDevicesViewModel @Inject constructor(
@@ -30,23 +36,33 @@ public class NearbyDevicesViewModel @Inject constructor(
     private val PREVIOUSLY_CONNECTED_KEY = "previously_connected_mac"
     private var previouslyConnectedMac: String? = prefs.getString(PREVIOUSLY_CONNECTED_KEY, null)
 
+    private val _scanning = MutableStateFlow(false)
+    private var autoConnectJob: Job? = null
+    private val _connecting = MutableStateFlow<String?>(null)
+    val connecting: StateFlow<String?> = _connecting.asStateFlow()
+    var count:Int = 0
 
+    private val seenDevices = mutableSetOf<String>()
     fun initScan() {
         // Store operator ID as "1" in shared preferences on launch
         prefs.edit { putString("operator_id", "000000000001") }
 
         bleApi.registerScanCallback { result ->
-            val device = Device(
+           val device = Device(
                 name = result.assetName,
-                signalStrength = 0, // You can add RSSI if available
+                signalStrength = result.rssi, // You can add RSSI if available
                 type = "BLE",
                 mac = result.macAddress,
                 id = result.macAddress,
                 isFavorite = isFavorite(result.macAddress),
                 isPreviouslyConnected = isPreviouslyConnected(result.macAddress)
             )
-            _devices.value = listOf(device)
-                .plus(_devices.value.filter { it.mac != result.macAddress })
+            if(seenDevices.add(device.mac)) {
+                _devices.value = _devices.value + device
+            }
+
+           // _devices.value = listOf(device)
+             //   .plus(_devices.value.filter { it.mac != result.macAddress })
         }
 
         bleApi.registerConnectionCallback { state ->
@@ -60,7 +76,39 @@ public class NearbyDevicesViewModel @Inject constructor(
         bleApi.startScan()
     }
 
+    fun startScanAndAutoConnectWindow() {
+
+        count++
+        println("counter for scan $count")
+       if(!_scanning.value) {
+           initScan()
+           autoConnectJob?.cancel()
+           autoConnectJob = viewModelScope.launch {
+               while (devices.value.isEmpty()) {
+                   delay(100)
+               }
+
+               delay(5000L)
+               println("outside connection : $_connecting.value} ")
+
+               if (_connecting.value == null) {
+                   val top = getHighestRssiDevice()
+                   println("Inside connection : ${top?.mac} ")
+                   top?.let {
+                       connectToDevice(it)
+
+                   }
+               }
+
+           }
+       }
+    }
+
+    fun getHighestRssiDevice(): Device? {
+        return _devices.value.maxByOrNull{ it.signalStrength }
+    }
     fun connectToDevice(device: Device) {
+        _connecting.value = device.mac
         bleApi.connect(device.mac)
         markAsPreviouslyConnected(device.mac)
         device.connectionState = "Connecting"
@@ -68,6 +116,7 @@ public class NearbyDevicesViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        _scanning.value = false
         bleApi.stopScan()
         bleApi.deregisterConnectionCallback { state ->
             _connectionState.value = state

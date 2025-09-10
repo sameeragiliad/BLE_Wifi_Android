@@ -62,7 +62,7 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
     val permissionSate = rememberMultiplePermissionState(
         permissions.toTypedArray(),
          onPermissionsGranted = {
-             viewModel.initScan()
+             viewModel.startScanAndAutoConnectWindow()
          }
     )
 
