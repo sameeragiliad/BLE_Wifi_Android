@@ -71,7 +71,7 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
     val ssid: String = "OnePlus 10R 5G"
     val password: String = "e4d66jsw"
 
-    val permissionLauncher = rememberLauncherForActivityResult(
+    /*val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
@@ -79,7 +79,7 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
         } else {
             Toast.makeText(context, "Location permission is required", Toast.LENGTH_SHORT).show()
         }
-    }
+    }*/
 
 
     BoxWithConstraints(
@@ -101,9 +101,9 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
                             Manifest.permission.ACCESS_FINE_LOCATION
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        connectToWifi(context, ssid, password)
+                        //connectToWifi(context, ssid, password)
                     } else {
-                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        //permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }
 
             },
@@ -306,9 +306,9 @@ fun IconFromPng() {
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            connectToWifi(context, ssid, password)
+            //connectToWifi(context, ssid, password)
         } else {
-            Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
+           // Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
         }
     }
 

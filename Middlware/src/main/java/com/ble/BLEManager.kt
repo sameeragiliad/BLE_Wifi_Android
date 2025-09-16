@@ -2,7 +2,6 @@ package com.ble
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -16,10 +15,7 @@ import android.bluetooth.le.ScanRecord
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -27,11 +23,6 @@ import androidx.annotation.RequiresPermission
 import com.ble.api.BLEApi
 import com.ble.model.BleScanResult
 import com.ble.model.ConnectionState
-import com.ble.model.OperatorError
-import com.ble.model.ResponseStatusCode
-import com.ble.model.OperationId
-import com.ble.model.parseOperationResponse
-import com.ble.util.ProtocolVersionVerifier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -62,6 +53,8 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     private val machineWiFiPasswordCharacteristicUUID = java.util.UUID.fromString("6DF733E3-AC7B-4C63-8226-FFE665B82697")
 
     private val connectionCallbacks = mutableSetOf<(ConnectionState) -> Unit>()
+
+    private var currentlyConnectedDevice: String? = null
 
     override fun startScan() {
         if (!hasBluetoothPermissions()) return
@@ -145,6 +138,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
             notifyError("Missing Bluetooth permissions")
             return
         }
+        currentlyConnectedDevice = deviceAddress
         val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
         if (device == null) {
             notifyError("Device not found: $deviceAddress")
@@ -165,6 +159,14 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
             connectionState = ConnectionState.DISCONNECTED
             connectedDeviceAddress = null
         }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun disconnectBle(gatt: BluetoothGatt) {
+        stopScan()
+        gatt.disconnect()
+        gatt.close()
+        connectedDeviceAddress = null
     }
 
     override fun registerErrorCallback(callback: (String) -> Unit) {
@@ -190,6 +192,11 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
 
     override fun deregisterConnectionCallback(callback: (ConnectionState) -> Unit) {
         connectionCallbacks.remove(callback)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    override fun disconnect() {
+       initiateDisconnection()
     }
 
     private fun setConnectionState(state: ConnectionState) {
@@ -382,11 +389,81 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
         val creds = wifiCredentials
         if (creds != null && creds.ssid.isNotEmpty() && creds.password.isNotEmpty()) {
 
-            com.ble.wifi.connectToWifi(context, creds.ssid, creds.password)
+            val ssidTemp="Se7XzSVp3g"
+            val passTemp="Golu@210"
+            com.ble.wifi.connectToWifi(context, creds.ssid, creds.password) {
+                notifyConnectionState(ConnectionState.CONNECTED)
+            }
             android.util.Log.d("BLEManager", "Attempting WiFi connection with SSID: ${creds.ssid}")
 
             // Notify connection state as CONNECTED
-            notifyConnectionState(ConnectionState.CONNECTED)
+
         }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun initiateDisconnection() {
+        val device = bluetoothAdapter?.getRemoteDevice(currentlyConnectedDevice)
+        val bluetoothGatt = device!!.connectGatt(context, false, gattCallback)
+        val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
+            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    Log.d("BLE", "Connected to GATT server.")
+                    // You now have the BluetoothGatt object
+                    val connectedGatt = gatt
+                    gatt?.discoverServices()
+                } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    Log.d("BLE", "Disconnected from GATT server.")
+                }
+            }
+
+            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            override fun onServicesDiscovered(
+                gatt: BluetoothGatt?,
+                status: Int
+            ) {
+                val service = gatt?.getService(primaryServiceUuid)
+                if (service == null) {
+                    notifyError("Primary service not found")
+                    return
+                }
+                disconnectWifi(gatt, service)
+                //disconnect(currentlyConnectedDevice?:"")
+                disconnectBle(gatt)
+            }
+
+            override fun onDescriptorWrite(
+                gatt: BluetoothGatt?,
+                descriptor: BluetoothGattDescriptor?,
+                status: Int
+            ) {
+                Log.d("BLEManager", "onDescriptorWrite ${descriptor?.uuid}, status: $status")
+                if (descriptor?.characteristic?.uuid == machineWiFiSSIDCharacteristicUUID) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        Log.d("BLEManager", "Wifi disable characteristic written successfully")
+
+                    } else {
+                        Log.e("BLEManager", "Failed to write disable wifi characteristic: $status")
+                    }
+                }
+            }
+        }
+
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disconnectWifi(gatt: BluetoothGatt, service: BluetoothGattService) {
+
+        val requestChar = service.getCharacteristic(machineEnableWiFiCharacteristicUUID)
+        if (requestChar == null) {
+            notifyError("Request characteristic not found")
+            gatt.disconnect()
+            return
+        }
+        val opcode = byteArrayOf(0x00) // 0x0001
+        requestChar.value = opcode
+        requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        gatt.writeCharacteristic(requestChar)
     }
 }

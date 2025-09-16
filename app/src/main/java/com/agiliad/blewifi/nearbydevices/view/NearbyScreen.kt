@@ -59,6 +59,16 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
             add(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
+
+    val connectionState by viewModel.connectionState.collectAsState()
+
+    LaunchedEffect(connectionState) {
+        if (connectionState == com.ble.model.ConnectionState.CONNECTED) {
+            android.util.Log.d("NearbyDevicesScreen", "onDeviceConnected")
+            onConnect()
+        }
+    }
+
     val permissionSate = rememberMultiplePermissionState(
         permissions.toTypedArray(),
          onPermissionsGranted = {
@@ -158,7 +168,7 @@ fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
                         ) {
 
                             Text(
-                                text = item.name,
+                                text = if(!item.name.isEmpty()) {item.name} else {item.id},
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyLarge,
 

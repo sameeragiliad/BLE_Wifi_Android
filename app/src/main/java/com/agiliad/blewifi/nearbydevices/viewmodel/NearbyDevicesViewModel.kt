@@ -43,6 +43,10 @@ public class NearbyDevicesViewModel @Inject constructor(
     var count:Int = 0
 
     private val seenDevices = mutableSetOf<String>()
+
+    private val autoConnectTimer = 3000L
+
+    var currentConnectedDevice: Device? = null
     fun initScan() {
         // Store operator ID as "1" in shared preferences on launch
         prefs.edit { putString("operator_id", "000000000001") }
@@ -88,7 +92,7 @@ public class NearbyDevicesViewModel @Inject constructor(
                    delay(100)
                }
 
-               delay(5000L)
+               delay(autoConnectTimer)
                println("outside connection : $_connecting.value} ")
 
                if (_connecting.value == null) {
@@ -108,6 +112,8 @@ public class NearbyDevicesViewModel @Inject constructor(
         return _devices.value.maxByOrNull{ it.signalStrength }
     }
     fun connectToDevice(device: Device) {
+        currentConnectedDevice = device
+        autoConnectJob?.cancel()
         _connecting.value = device.mac
         bleApi.connect(device.mac)
         markAsPreviouslyConnected(device.mac)
@@ -159,6 +165,7 @@ public class NearbyDevicesViewModel @Inject constructor(
     }
 
     private fun onDeviceConnected() {
+        bleApi.stopScan()
         // Trigger any additional logic for when the device is connected
     }
 }

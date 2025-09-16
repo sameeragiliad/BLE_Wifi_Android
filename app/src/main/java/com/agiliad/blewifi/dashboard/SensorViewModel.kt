@@ -42,7 +42,7 @@ class SensorViewModel @Inject constructor(
                     val data = repository.fetchAllSensorData()
                     _sensorData.value = data
                 } catch (e: Exception) {
-                    // Handle error
+                    print("Exception in api call ${e.message}")
                 }
                 delay(2000)
             }
