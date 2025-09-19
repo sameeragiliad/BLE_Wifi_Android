@@ -8,5 +8,5 @@ data class Device(
     val mac: String,
     val isFavorite: Boolean = false,
     val isPreviouslyConnected: Boolean = false,
-    var connectionState: String = ""
+    var connectionState: String = "Disconnected"
 )

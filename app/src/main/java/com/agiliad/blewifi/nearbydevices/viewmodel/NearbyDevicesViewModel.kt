@@ -44,7 +44,7 @@ public class NearbyDevicesViewModel @Inject constructor(
 
     private val seenDevices = mutableSetOf<String>()
 
-    private val autoConnectTimer = 3000L
+    private val autoConnectTimer = 500000000L
 
     var currentConnectedDevice: Device? = null
     fun initScan() {
@@ -94,13 +94,11 @@ public class NearbyDevicesViewModel @Inject constructor(
 
                delay(autoConnectTimer)
                println("outside connection : $_connecting.value} ")
-
                if (_connecting.value == null) {
                    val top = getHighestRssiDevice()
                    println("Inside connection : ${top?.mac} ")
                    top?.let {
                        connectToDevice(it)
-
                    }
                }
 
@@ -117,8 +115,27 @@ public class NearbyDevicesViewModel @Inject constructor(
         _connecting.value = device.mac
         bleApi.connect(device.mac)
         markAsPreviouslyConnected(device.mac)
-        device.connectionState = "Connecting"
+
+        // Update the device's connectionState in the _devices list
+        _devices.value = _devices.value.map {
+            if (it.mac == device.mac) it.copy(connectionState = "Connecting") else it
+        }
         //connectionState = ConnectionState.CONNECTING;
+    }
+
+    fun onDeviceTapped(device: Device, onNavigateToDashboard: () -> Unit) {
+        // If the tapped device is already connected, go to dashboard
+        if (device.connectionState == "CONNECTED") {
+            onNavigateToDashboard()
+            return
+        }
+        // If another device is connected, disconnect first
+        val connectedDevice = _devices.value.find { it.connectionState == "CONNECTED" }
+        if (connectedDevice != null && connectedDevice.mac != device.mac) {
+            bleApi.disconnect()
+            // Optionally, wait for disconnect to complete before connecting
+        }
+        connectToDevice(device)
     }
 
     override fun onCleared() {

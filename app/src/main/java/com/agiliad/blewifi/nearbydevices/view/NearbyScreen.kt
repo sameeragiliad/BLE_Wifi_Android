@@ -91,12 +91,12 @@ fun NearbyScreen(
         permissionSate.requestPermissions()
     }
 
-        NearbyScreenUI(viewModel)
+        NearbyScreenUI(viewModel, onConnect)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
+fun NearbyScreenUI(viewModel: NearbyDevicesViewModel, onConnect: (deviceName: String) -> Unit) {
 
     val devices by viewModel.devices.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
@@ -165,9 +165,10 @@ fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // .clickable { navigationController.navigate("Dashboard") } //viewModel.connectToDevice(devices[0].mac)
                             .clickable {
-                                viewModel.connectToDevice(devices[index])
+                                viewModel.onDeviceTapped(devices[index]) {
+                                    onConnect(item.name)
+                                }
                             }
 
                     ) {
