@@ -30,12 +30,17 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.agiliad.blewifi.R
 import com.agiliad.blewifi.ui.theme.BLEWifiTheme
@@ -62,7 +70,9 @@ import com.ble.wifi.connectToWifi
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
-fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationController: NavController) {
+fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationController: NavController, deviceName: String,  onDisconnect: () -> Unit) {
+
+    var showDisconnectDialog by remember { mutableStateOf(false) }
 
     val sensorData by viewModel.sensorData.collectAsState()
     val insets = WindowInsets.statusBars.asPaddingValues()
@@ -135,18 +145,51 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
                         modifier = Modifier.fillMaxSize(0.90f),
                         contentScale = ContentScale.Fit
                     )
+
+                    IconButton(
+                        onClick = { showDisconnectDialog = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .size(48.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.disconnect_btn),
+                            contentDescription = "Disconnect",
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
+               /* Text(
+                    // add id here
+
                     text = "CAT 305 CR Mini Excavator",
                     color = Color.White,
                     fontSize = (screenWidth.value / 18).sp, // adaptive font size
 
+                )*/
+
+                Text(
+                    // add id here
+                   // text = "CAT 305 CR Mini Excavator",
+                    text = deviceName,
+                    color = Color.White,
+                    fontSize = (screenWidth.value / 18).sp, // adaptive font size
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+               /* // Show connected device name at the top
+                Text(
+                   // text = "Connected Device: $deviceName",
+                    text = "Connected Device: CCVTP",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(16.dp)
+                )*/
 
                 // Middle Stats Cards responsive grid
                 Column(
@@ -186,6 +229,43 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
                 Spacer(modifier = Modifier.weight(1f))
 
             }
+        }
+    }
+
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            title = { Text("Disconnect") },
+            text = { Text("Do you want to disconnect?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.disconnect()
+                    onDisconnect()
+                    showDisconnectDialog = false
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectDialog = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> viewModel.onDashboardBackgrounded()
+                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> viewModel.onDashboardForegrounded()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 }

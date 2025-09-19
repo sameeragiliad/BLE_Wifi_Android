@@ -48,10 +48,15 @@ import com.agiliad.blewifi.nearbydevices.viewmodel.NearbyDevicesViewModel
 import com.agiliad.blewifi.utils.permissions.rememberMultiplePermissionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 
 
 @Composable
-fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect: () -> Unit) {
+fun NearbyScreen(
+    viewModel: NearbyDevicesViewModel = hiltViewModel(),
+    navigationController: NavController,
+    onConnect: (deviceName: String) -> Unit
+) {
 
     val permissions = buildList {
             add(Manifest.permission.BLUETOOTH_SCAN)
@@ -61,11 +66,16 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
 
 
     val connectionState by viewModel.connectionState.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    var connectedDeviceName by remember { mutableStateOf("") }
 
     LaunchedEffect(connectionState) {
         if (connectionState == com.ble.model.ConnectionState.CONNECTED) {
             android.util.Log.d("NearbyDevicesScreen", "onDeviceConnected")
-            onConnect()
+            // Find the connected device name
+            val connectedDevice = devices.find { it.connectionState == "CONNECTED" }
+            connectedDeviceName = connectedDevice?.name ?: ""
+            onConnect(connectedDeviceName)
         }
     }
 

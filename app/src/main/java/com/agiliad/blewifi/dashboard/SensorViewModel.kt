@@ -4,21 +4,30 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 
 @HiltViewModel
 class SensorViewModel @Inject constructor(
-    private val repository: SensorRepository
+    private val repository: SensorRepository,
+    private val bleApi: com.ble.api.BLEApi // Inject BLEApi
 ): ViewModel() {
 
     private val _sensorData = MutableStateFlow<SensorData?>(null)
     val sensorData: StateFlow<SensorData?> = _sensorData
-/*
+
+    private var backgroundJob: Job? = null
+    private val _dashboardBackgroundEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val dashboardBackgroundEvent = _dashboardBackgroundEvent.asSharedFlow()
+
+    /*
     fun loadSensorData() {
         viewModelScope.launch {
             try {
@@ -49,4 +58,20 @@ class SensorViewModel @Inject constructor(
         }
     }
 
+    fun disconnect() {
+        bleApi.disableWiFi()
+    }
+
+    fun onDashboardBackgrounded() {
+        backgroundJob?.cancel()
+        backgroundJob = viewModelScope.launch {
+            delay(15000)
+            bleApi.disableWiFi()
+            _dashboardBackgroundEvent.tryEmit(Unit)
+        }
+    }
+
+    fun onDashboardForegrounded() {
+        backgroundJob?.cancel()
+    }
 }
