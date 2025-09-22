@@ -428,18 +428,17 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
         if (creds != null && creds.ssid.isNotEmpty() && creds.password.isNotEmpty()) {
 
             // static password, To Do: comment this
-            val ssidTemp="Chandler_Bing_5G"
+            /*val ssidTemp="Chandler_Bing_5G"
             val passTemp="Saaz0710"
             com.ble.wifi.connectToWifi(context, ssidTemp, passTemp) {
                 notifyConnectionState(ConnectionState.CONNECTED)
-            }
+            }*/
             //.........................................
 
             // To Do: uncomment this
-            /*com.ble.wifi.connectToWifi(context, creds.ssid, creds.password) {
+            com.ble.wifi.connectToWifi(context, creds.ssid, creds.password) {
                 notifyConnectionState(ConnectionState.CONNECTED)
-            }*/
-
+            }
             android.util.Log.d("BLEManager", "Attempting WiFi connection with SSID: ${creds.ssid}")
 
             // Notify connection state as CONNECTED
