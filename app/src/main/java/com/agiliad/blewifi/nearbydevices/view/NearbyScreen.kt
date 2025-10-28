@@ -48,10 +48,15 @@ import com.agiliad.blewifi.nearbydevices.viewmodel.NearbyDevicesViewModel
 import com.agiliad.blewifi.utils.permissions.rememberMultiplePermissionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 
 
 @Composable
-fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect: () -> Unit) {
+fun NearbyScreen(
+    viewModel: NearbyDevicesViewModel = hiltViewModel(),
+    navigationController: NavController,
+    onConnect: (deviceName: String) -> Unit
+) {
 
     val permissions = buildList {
             add(Manifest.permission.BLUETOOTH_SCAN)
@@ -64,11 +69,16 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
 
 
     val connectionState by viewModel.connectionState.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    var connectedDeviceName by remember { mutableStateOf("") }
 
     LaunchedEffect(connectionState) {
         if (connectionState == com.ble.model.ConnectionState.CONNECTED) {
             android.util.Log.d("NearbyDevicesScreen", "onDeviceConnected")
-            onConnect()
+            // Find the connected device name
+            val connectedDevice = devices.find { it.connectionState == "CONNECTED" }
+            connectedDeviceName = connectedDevice?.name ?: ""
+            onConnect(connectedDeviceName)
         }
     }
 
@@ -84,12 +94,12 @@ fun NearbyScreen(viewModel: NearbyDevicesViewModel = hiltViewModel(), onConnect:
         permissionSate.requestPermissions()
     }
 
-        NearbyScreenUI(viewModel)
+        NearbyScreenUI(viewModel, onConnect)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
+fun NearbyScreenUI(viewModel: NearbyDevicesViewModel, onConnect: (deviceName: String) -> Unit) {
 
     val devices by viewModel.devices.collectAsState()
     var isRefreshing by remember { mutableStateOf(false) }
@@ -158,9 +168,10 @@ fun NearbyScreenUI(viewModel: NearbyDevicesViewModel) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // .clickable { navigationController.navigate("Dashboard") } //viewModel.connectToDevice(devices[0].mac)
                             .clickable {
-                                viewModel.connectToDevice(devices[index])
+                                viewModel.onDeviceTapped(devices[index]) {
+                                    onConnect(item.name)
+                                }
                             }
 
                     ) {

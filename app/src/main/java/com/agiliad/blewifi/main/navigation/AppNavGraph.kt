@@ -14,22 +14,22 @@ fun AppNavGraph(){
     val navController = rememberNavController()
 
     NavHost(navController, startDestination = "NearbyDevices") {
+   // NavHost(navController, startDestination = "Dashboard/{deviceName}") {
         composable("splashscreen") {
             SplashScreen() {
                 navController.navigate("NearbyDevices")
             }
         }
         composable("NearbyDevices") {
-           // NearbyScreen(navigationController=navController)
-            NearbyScreen {
-                navController.navigate("Dashboard")
+           NearbyScreen(navigationController = navController) { deviceName ->
+                navController.navigate("Dashboard/$deviceName")
             }
         }
-        composable("Dashboard") {
-            DashboardScreen(navigationController=navController)
-            /*AssetControlScreen {
-               // navController.navigate("NearbyDevices")
-            }*/
+        composable("Dashboard/{deviceName}") { backStackEntry ->
+            val deviceName = backStackEntry.arguments?.getString("deviceName") ?: ""
+            DashboardScreen(navigationController=navController, deviceName = deviceName, onDisconnect = {
+                navController.navigate("NearbyDevices")
+            })
         }
     }
 }

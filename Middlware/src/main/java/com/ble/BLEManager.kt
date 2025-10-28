@@ -41,6 +41,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
 
     private var connectionState = ConnectionState.DISCONNECTED
     private var bluetoothGatt: android.bluetooth.BluetoothGatt? = null
+    private var lastService: BluetoothGattService? = null
     private val errorCallbacks = mutableSetOf<(String) -> Unit>()
     private var connectedDeviceAddress: String? = null
 
@@ -195,6 +196,17 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    override fun disableWiFi() {
+        val gatt = bluetoothGatt
+        val service = lastService
+        if (gatt != null && service != null) {
+            disableWiFi(gatt, service)
+        } else {
+            notifyError("Cannot disable WiFi: GATT or Service not available")
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun disconnect() {
        initiateDisconnection()
     }
@@ -205,7 +217,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun enableWiFi(gatt: BluetoothGatt, service: BluetoothGattService) {
+    public fun enableWiFi(gatt: BluetoothGatt, service: BluetoothGattService) {
 
         val requestChar = service.getCharacteristic(machineEnableWiFiCharacteristicUUID)
         if (requestChar == null) {
@@ -221,6 +233,31 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
         requestChar.value = opcode
         requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         gatt.writeCharacteristic(requestChar)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disableWiFi(gatt: BluetoothGatt, service: BluetoothGattService) {
+        val requestChar = service.getCharacteristic(machineEnableWiFiCharacteristicUUID)
+        if (requestChar == null) {
+            notifyError("Request characteristic not found")
+            disconnectGatt(gatt)
+            return
+        }
+        val opcode = byteArrayOf(0x00) // 0x0001
+        requestChar.value = opcode
+        requestChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        gatt.writeCharacteristic(requestChar)
+        // BLE disconnect after disabling WiFi
+        disconnectGatt(gatt)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun disconnectGatt(gatt: BluetoothGatt) {
+        gatt.disconnect()
+        gatt.close()
+        bluetoothGatt = null
+        connectedDeviceAddress = null
+        connectionState = ConnectionState.DISCONNECTED
     }
 
 
@@ -311,6 +348,7 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
                 notifyError("Primary service not found")
                 return
             }
+            lastService = service
             setConnectionState(ConnectionState.SERVICE_DISCOVERED)
 
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
@@ -389,8 +427,15 @@ class BLEManager @Inject constructor(@ApplicationContext private val context: Co
         val creds = wifiCredentials
         if (creds != null && creds.ssid.isNotEmpty() && creds.password.isNotEmpty()) {
 
-            val ssidTemp="Se7XzSVp3g"
-            val passTemp="Golu@210"
+            // static password, To Do: comment this
+            /*val ssidTemp="Chandler_Bing_5G"
+            val passTemp="Saaz0710"
+            com.ble.wifi.connectToWifi(context, ssidTemp, passTemp) {
+                notifyConnectionState(ConnectionState.CONNECTED)
+            }*/
+            //.........................................
+
+            // To Do: uncomment this
             com.ble.wifi.connectToWifi(context, creds.ssid, creds.password) {
                 notifyConnectionState(ConnectionState.CONNECTED)
             }
