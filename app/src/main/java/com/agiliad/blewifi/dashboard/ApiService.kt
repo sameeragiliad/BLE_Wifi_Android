@@ -2,9 +2,11 @@ package com.agiliad.blewifi.dashboard
 
 
 import dagger.Provides
+import okhttp3.ResponseBody
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.Response
+import retrofit2.http.Streaming
 
 interface ApiService  {
     @GET("api/engine-hours")
@@ -24,4 +26,10 @@ interface ApiService  {
 
     @GET("api/oil-temperature")
     suspend fun getOilTemperature(): Response<Map<String, Double>>
+
+
+    @GET("api/download/diagnostics")
+    @Streaming
+    suspend fun downloadDiagnostics(): Response<ResponseBody>
+
 }

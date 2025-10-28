@@ -1,8 +1,10 @@
 package com.agiliad.blewifi.dashboard
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,23 +20,13 @@ class SensorViewModel @Inject constructor(
 
     private val _sensorData = MutableStateFlow<SensorData?>(null)
     val sensorData: StateFlow<SensorData?> = _sensorData
-/*
-    fun loadSensorData() {
-        viewModelScope.launch {
-            try {
-                val data = repository.fetchAllSensorData()
-                _sensorData.value = data
-            } catch (e: Exception) {
-                // Handle error
-            }
-        }
-    }*/
+
+    private val _downloadStatus = MutableStateFlow<Boolean?>(null)
+    val downloadStatus: StateFlow<Boolean?> = _downloadStatus
 
     init {
         startPolling()
     }
-
-
     private fun startPolling() {
         viewModelScope.launch {
             while (true) {
@@ -48,5 +40,10 @@ class SensorViewModel @Inject constructor(
             }
         }
     }
-
+    fun downloadLogToDownloads(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.downloadDiagnosticsToDownloads(context)
+            _downloadStatus.value = success
+        }
+    }
 }

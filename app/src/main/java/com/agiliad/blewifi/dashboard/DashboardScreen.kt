@@ -1,12 +1,9 @@
 package com.agiliad.blewifi.dashboard
 
 import android.Manifest
-import android.R.attr.onClick
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Context
 import android.content.pm.PackageManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -28,8 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -58,7 +53,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.agiliad.blewifi.R
 import com.agiliad.blewifi.ui.theme.BLEWifiTheme
-import com.ble.wifi.connectToWifi
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -96,18 +90,9 @@ fun DashboardScreen(viewModel: SensorViewModel=hiltViewModel(), navigationContro
         // Menu button top-right
         IconButton(
             onClick = {
-                     if (ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        //connectToWifi(context, ssid, password)
-                    } else {
-                        //permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
-
+                     viewModel.downloadLogToDownloads(context)
             },
-            modifier = Modifier.align(Alignment.TopEnd)
+            modifier = Modifier.align(Alignment.TopStart)
         ) {
             //Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
             IconFromPng()
